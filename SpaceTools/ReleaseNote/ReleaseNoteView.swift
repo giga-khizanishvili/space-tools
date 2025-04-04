@@ -45,7 +45,6 @@ struct ReleaseNoteView: View {
 
             spacer
 
-
             Button(
                 action: submit,
                 label: {
@@ -85,12 +84,12 @@ private extension ReleaseNoteView {
     }
 
     var allBuildInformation: String {
-        buildNumbers
-            .filter { $0.key != .production }
-            .map { (source, number) in
+        BuildSource.allCases
+            .filter { $0 != .production }
+            .map { source in
                 """
                 *\(source.name)*:
-                Build - v\(version)(\(number))
+                Build - v\(version)(\(buildNumbers[source]!))
                 
                 
                 """
