@@ -22,7 +22,7 @@ struct ToastModifier: ViewModifier {
                 }
                     .animation(.spring(), value: toast)
             )
-            .onChange(of: toast) { oldValue, newValue in
+            .onChange(of: toast) { _, _ in
                 showToast()
             }
     }

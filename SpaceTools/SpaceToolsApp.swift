@@ -15,5 +15,9 @@ struct SpaceToolsApp: App {
                 ReleaseNoteView()
             }
         }
+        #if os(macOS)
+        .windowResizability(.contentSize)
+        .defaultSize(width: 520, height: 720)
+        #endif
     }
 }
