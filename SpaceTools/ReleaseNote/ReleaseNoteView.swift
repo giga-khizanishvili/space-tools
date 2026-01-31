@@ -8,16 +8,7 @@
 import SwiftUI
 
 struct ReleaseNoteView: View {
-    @AppStorage("spaceTools.version") private var version = "2.35.0"
-    @AppStorage("spaceTools.showDevBuilds") private var showDevBuilds = true
-
-    @State private var status = "Waiting for Review"
-    @State private var buildNumbers: [BuildSource: String] = Dictionary(
-        uniqueKeysWithValues: BuildSource.allCases.map { ($0, "") }
-    )
-    @State private var toast: Toast?
-    @State private var showPreview = false
-
+    @State private var viewModel = ReleaseNoteViewModel()
     @FocusState private var focusedField: FocusField?
 
     var body: some View {
@@ -30,10 +21,10 @@ struct ReleaseNoteView: View {
                 generateButton
             }
             .padding(24)
-            .animation(.easeInOut(duration: 0.2), value: showDevBuilds)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.showDevBuilds)
         }
         .background(Color(.windowBackgroundColor).opacity(0.5))
-        .toast($toast)
+        .toast($viewModel.toast)
         .navigationTitle("Release Note Factory")
         .toolbar { toolbarContent }
     }
@@ -41,7 +32,7 @@ struct ReleaseNoteView: View {
 
 // MARK: - Focus Field
 
-private extension ReleaseNoteView {
+extension ReleaseNoteView {
     enum FocusField: Hashable {
         case version
         case status
@@ -55,7 +46,7 @@ private extension ReleaseNoteView {
     @ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .automatic) {
-            Button(action: resetBuildNumbers) {
+            Button(action: viewModel.resetBuildNumbers) {
                 Label("Clear Build Numbers", systemImage: "arrow.counterclockwise")
             }
             .help("Clear all build numbers")
@@ -65,7 +56,7 @@ private extension ReleaseNoteView {
     var settingsSection: some View {
         HStack {
             Spacer()
-            Toggle("Include Dev Builds", isOn: $showDevBuilds)
+            Toggle("Include Dev Builds", isOn: $viewModel.showDevBuilds)
                 .toggleStyle(.switch)
                 .tint(.accentColor)
         }
@@ -77,7 +68,7 @@ private extension ReleaseNoteView {
                 FormField(
                     label: "Version",
                     placeholder: "e.g., 2.35.0",
-                    text: $version,
+                    text: $viewModel.version,
                     focusedField: $focusedField,
                     fieldValue: .version,
                     onSubmit: { focusedField = .status }
@@ -85,7 +76,7 @@ private extension ReleaseNoteView {
                 FormField(
                     label: "Status",
                     placeholder: "e.g., Waiting for Review",
-                    text: $status,
+                    text: $viewModel.status,
                     focusedField: $focusedField,
                     fieldValue: .status,
                     onSubmit: { focusedField = .buildSource(.production) }
@@ -108,30 +99,30 @@ private extension ReleaseNoteView {
             FormField(
                 label: BuildSource.production.name,
                 placeholder: "Build number",
-                text: buildNumberBinding(for: .production),
-                badge: BuildSource.production.badge,
+                text: viewModel.buildNumberBinding(for: .production),
+                badge: BuildSource.production.badgeType,
                 focusedField: $focusedField,
                 fieldValue: .buildSource(.production),
                 onSubmit: { moveFocusAfter(.production) }
             )
 
-            Button(action: fillBuildNumbersAutomatically) {
+            Button(action: viewModel.fillBuildNumbersAutomatically) {
                 Label("Auto-fill", systemImage: "wand.and.stars")
             }
             .buttonStyle(.bordered)
             .help("Fill other build numbers automatically (+1, +2, ...)")
-            .disabled(Int(buildNumbers[.production] ?? "") == nil)
+            .disabled(!viewModel.canAutoFill)
         }
     }
 
     @ViewBuilder
     var otherBuildFields: some View {
-        ForEach(visibleBuildSources.filter { $0 != .production }, id: \.self) { source in
+        ForEach(viewModel.visibleBuildSources.filter { $0 != .production }, id: \.self) { source in
             FormField(
                 label: source.name,
                 placeholder: "Build number",
-                text: buildNumberBinding(for: source),
-                badge: source.badge,
+                text: viewModel.buildNumberBinding(for: source),
+                badge: source.badgeType,
                 focusedField: $focusedField,
                 fieldValue: .buildSource(source),
                 onSubmit: { moveFocusAfter(source) }
@@ -144,10 +135,10 @@ private extension ReleaseNoteView {
             title: "Preview",
             icon: "doc.text",
             isCollapsible: true,
-            isExpanded: $showPreview
+            isExpanded: $viewModel.showPreview
         ) {
-            if showPreview {
-                Text(releaseNote)
+            if viewModel.showPreview {
+                Text(viewModel.releaseNote)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +150,7 @@ private extension ReleaseNoteView {
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
-                showPreview.toggle()
+                viewModel.showPreview.toggle()
             }
         }
     }
@@ -177,71 +168,7 @@ private extension ReleaseNoteView {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .keyboardShortcut(.return, modifiers: .command)
-        .disabled(!isFormValid)
-    }
-}
-
-// MARK: - Computed Properties
-
-private extension ReleaseNoteView {
-    var visibleBuildSources: [BuildSource] {
-        showDevBuilds ? BuildSource.allCases : BuildSource.withoutDev
-    }
-
-    var isFormValid: Bool {
-        !version.trimmingCharacters(in: .whitespaces).isEmpty
-            && !status.trimmingCharacters(in: .whitespaces).isEmpty
-            && !productionBuildNumber.isEmpty
-    }
-
-    var productionBuildNumber: String {
-        buildNumbers[.production]?.trimmingCharacters(in: .whitespaces) ?? ""
-    }
-
-    var tag: String {
-        "UZ-V-\(version)"
-    }
-
-    var tagURL: URL {
-        URL(string: "https://github.com/SpaceBank/iOS-Space/releases/tag/\(tag)")!
-    }
-
-    var releaseNote: String {
-        var note = """
-        Tag - [\(tag)](\(tagURL))
-        \(makeBuildString(productionBuildNumber))
-
-        *Status - \(status)*
-        """
-
-        if showDevBuilds {
-            note += "\n\n" + devBuildInformation
-        }
-
-        note += "\n\n" + testBuildInformation
-
-        return note
-    }
-
-    var devBuildInformation: String {
-        makeBuildInformation(for: BuildSource.devCases)
-    }
-
-    var testBuildInformation: String {
-        makeBuildInformation(for: BuildSource.testCases)
-    }
-
-    func makeBuildInformation(for sources: [BuildSource]) -> String {
-        sources
-            .map { source in
-                let buildNumber = buildNumbers[source] ?? ""
-                return """
-                *\(source.name)*:
-                Build - v\(version)(\(buildNumber))
-
-                """
-            }
-            .joined(separator: "\n")
+        .disabled(!viewModel.isFormValid)
     }
 }
 
@@ -249,41 +176,12 @@ private extension ReleaseNoteView {
 
 private extension ReleaseNoteView {
     func submit() {
-        guard isFormValid else { return }
-
         focusedField = nil
-        copyToClipboard(releaseNote)
-
-        DispatchQueue.main.async {
-            toast = Toast(
-                style: .success,
-                message: "Release note copied to clipboard!"
-            )
-        }
-    }
-
-    func resetBuildNumbers() {
-        withAnimation {
-            for source in BuildSource.allCases {
-                buildNumbers[source] = ""
-            }
-        }
-    }
-
-    func fillBuildNumbersAutomatically() {
-        guard let baseBuildNumber = Int(buildNumbers[.production] ?? "") else { return }
-
-        let otherSources: [BuildSource] = [.devAdhoc, .devTestFlight, .testAdhoc, .testTestFlight]
-
-        withAnimation {
-            for (index, source) in otherSources.enumerated() {
-                buildNumbers[source] = String(baseBuildNumber + index + 1)
-            }
-        }
+        viewModel.submit()
     }
 
     func moveFocusAfter(_ source: BuildSource) {
-        let sources = visibleBuildSources
+        let sources = viewModel.visibleBuildSources
         guard let currentIndex = sources.firstIndex(of: source) else {
             submit()
             return
@@ -294,75 +192,6 @@ private extension ReleaseNoteView {
             focusedField = .buildSource(sources[nextIndex])
         } else {
             submit()
-        }
-    }
-
-    func copyToClipboard(_ text: String) {
-#if os(iOS) || os(visionOS)
-        UIPasteboard.general.string = text
-#elseif os(macOS)
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-#endif
-    }
-}
-
-// MARK: - Helpers
-
-private extension ReleaseNoteView {
-    func buildNumberBinding(for source: BuildSource) -> Binding<String> {
-        Binding(
-            get: { buildNumbers[source] ?? "" },
-            set: { buildNumbers[source] = $0 }
-        )
-    }
-
-    func makeBuildString(_ buildNumber: String) -> String {
-        "Build - v\(version)(\(buildNumber))"
-    }
-}
-
-// MARK: - Build Source
-
-private enum BuildSource: CaseIterable, Hashable {
-    case production
-    case devAdhoc
-    case devTestFlight
-    case testAdhoc
-    case testTestFlight
-
-    static var allCases: [BuildSource] {
-        [.production, .devAdhoc, .devTestFlight, .testAdhoc, .testTestFlight]
-    }
-
-    static var withoutDev: [BuildSource] {
-        [.production, .testAdhoc, .testTestFlight]
-    }
-
-    static var devCases: [BuildSource] {
-        [.devAdhoc, .devTestFlight]
-    }
-
-    static var testCases: [BuildSource] {
-        [.testAdhoc, .testTestFlight]
-    }
-
-    var name: String {
-        switch self {
-        case .production: "Production"
-        case .devAdhoc: "Dev Adhoc"
-        case .devTestFlight: "Dev TestFlight"
-        case .testAdhoc: "Test Adhoc"
-        case .testTestFlight: "Test TestFlight"
-        }
-    }
-
-    var badge: FormField<ReleaseNoteView.FocusField>.Badge? {
-        switch self {
-        case .production: .production
-        case .devAdhoc, .devTestFlight: .dev
-        case .testAdhoc, .testTestFlight: .test
         }
     }
 }

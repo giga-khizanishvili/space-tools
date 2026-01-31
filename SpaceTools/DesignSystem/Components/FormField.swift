@@ -11,7 +11,7 @@ struct FormField<FocusValue: Hashable>: View {
     let label: String
     let placeholder: String
     @Binding var text: String
-    var badge: Badge?
+    var badge: BadgeType?
     var focusedField: FocusState<FocusValue?>.Binding?
     var fieldValue: FocusValue?
     var onSubmit: (() -> Void)?
@@ -24,14 +24,7 @@ struct FormField<FocusValue: Hashable>: View {
                     .foregroundColor(.secondary)
 
                 if let badge {
-                    Text(badge.text)
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(badge.color.opacity(0.15))
-                        .foregroundColor(badge.color)
-                        .cornerRadius(4)
+                    BadgeView(type: badge)
                 }
             }
 
@@ -58,28 +51,39 @@ private extension FormField {
     }
 }
 
-// MARK: - Badge
+// MARK: - Badge View
 
-extension FormField {
-    enum Badge {
-        case production
-        case dev
-        case test
+private struct BadgeView: View {
+    let type: BadgeType
 
-        var text: String {
-            switch self {
-            case .production: "PROD"
-            case .dev: "DEV"
-            case .test: "TEST"
-            }
+    var body: some View {
+        Text(type.text)
+            .font(.caption2)
+            .fontWeight(.bold)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(type.color.opacity(0.15))
+            .foregroundColor(type.color)
+            .cornerRadius(4)
+    }
+}
+
+// MARK: - Badge Type Extension
+
+extension BadgeType {
+    var text: String {
+        switch self {
+        case .production: "PROD"
+        case .dev: "DEV"
+        case .test: "TEST"
         }
+    }
 
-        var color: Color {
-            switch self {
-            case .production: .green
-            case .dev: .orange
-            case .test: .blue
-            }
+    var color: Color {
+        switch self {
+        case .production: .green
+        case .dev: .orange
+        case .test: .blue
         }
     }
 }
@@ -91,7 +95,7 @@ extension FormField where FocusValue == Never {
         label: String,
         placeholder: String,
         text: Binding<String>,
-        badge: Badge? = nil
+        badge: BadgeType? = nil
     ) {
         self.label = label
         self.placeholder = placeholder
