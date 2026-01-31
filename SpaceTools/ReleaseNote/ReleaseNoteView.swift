@@ -88,7 +88,7 @@ private extension ReleaseNoteView {
             )
 
             Button(action: fillBuildNumbersAutomatically) {
-                Image(systemName: "wand.and.stars")
+                Label("Auto-fill", systemImage: "wand.and.stars")
             }
             .buttonStyle(.bordered)
             .help("Fill other build numbers automatically (+1, +2, ...)")
@@ -123,6 +123,12 @@ private extension ReleaseNoteView {
                     .padding(12)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(8)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showPreview.toggle()
             }
         }
     }
