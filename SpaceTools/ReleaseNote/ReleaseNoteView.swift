@@ -21,8 +21,8 @@ struct ReleaseNoteView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                settingsSection
                 generalInfoSection
+                settingsSection
                 buildNumbersSection
                 previewSection
                 generateButton
