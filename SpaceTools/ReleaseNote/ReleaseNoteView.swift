@@ -124,7 +124,7 @@ private extension ReleaseNoteView {
 
 private extension ReleaseNoteView {
     var visibleBuildSources: [BuildSource] {
-        showDevBuilds ? BuildSource.allCases : BuildSource.productionOnly
+        showDevBuilds ? BuildSource.allCases : BuildSource.withoutDev
     }
 
     var isFormValid: Bool {
@@ -157,11 +157,21 @@ private extension ReleaseNoteView {
             note += "\n\n" + devBuildInformation
         }
 
+        note += "\n\n" + testBuildInformation
+
         return note
     }
 
     var devBuildInformation: String {
-        BuildSource.devCases
+        makeBuildInformation(for: BuildSource.devCases)
+    }
+
+    var testBuildInformation: String {
+        makeBuildInformation(for: BuildSource.testCases)
+    }
+
+    func makeBuildInformation(for sources: [BuildSource]) -> String {
+        sources
             .map { source in
                 let buildNumber = buildNumbers[source] ?? ""
                 return """
@@ -235,12 +245,16 @@ private enum BuildSource: CaseIterable, Hashable {
         [.production, .devAdhoc, .devTestFlight, .testAdhoc, .testTestFlight]
     }
 
-    static var productionOnly: [BuildSource] {
-        [.production]
+    static var withoutDev: [BuildSource] {
+        [.production, .testAdhoc, .testTestFlight]
     }
 
     static var devCases: [BuildSource] {
-        [.devAdhoc, .devTestFlight, .testAdhoc, .testTestFlight]
+        [.devAdhoc, .devTestFlight]
+    }
+
+    static var testCases: [BuildSource] {
+        [.testAdhoc, .testTestFlight]
     }
 
     var name: String {
