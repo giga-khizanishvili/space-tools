@@ -18,6 +18,8 @@ struct ReleaseNoteView: View {
     @State private var toast: Toast?
     @State private var showPreview = false
 
+    @FocusState private var focusedField: FocusField?
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -34,7 +36,16 @@ struct ReleaseNoteView: View {
         .toast($toast)
         .navigationTitle("Release Note Factory")
         .toolbar { toolbarContent }
-        .onSubmit(submit)
+    }
+}
+
+// MARK: - Focus Field
+
+private extension ReleaseNoteView {
+    enum FocusField: Hashable {
+        case version
+        case status
+        case buildSource(BuildSource)
     }
 }
 
@@ -63,8 +74,22 @@ private extension ReleaseNoteView {
     var generalInfoSection: some View {
         CardView(title: "General Info", icon: "info.circle") {
             VStack(spacing: 16) {
-                FormField(label: "Version", placeholder: "e.g., 2.35.0", text: $version)
-                FormField(label: "Status", placeholder: "e.g., Waiting for Review", text: $status)
+                FormField(
+                    label: "Version",
+                    placeholder: "e.g., 2.35.0",
+                    text: $version,
+                    focusedField: $focusedField,
+                    fieldValue: .version,
+                    onSubmit: { focusedField = .status }
+                )
+                FormField(
+                    label: "Status",
+                    placeholder: "e.g., Waiting for Review",
+                    text: $status,
+                    focusedField: $focusedField,
+                    fieldValue: .status,
+                    onSubmit: { focusedField = .buildSource(.production) }
+                )
             }
         }
     }
@@ -84,7 +109,10 @@ private extension ReleaseNoteView {
                 label: BuildSource.production.name,
                 placeholder: "Build number",
                 text: buildNumberBinding(for: .production),
-                badge: BuildSource.production.badge
+                badge: BuildSource.production.badge,
+                focusedField: $focusedField,
+                fieldValue: .buildSource(.production),
+                onSubmit: { moveFocusAfter(.production) }
             )
 
             Button(action: fillBuildNumbersAutomatically) {
@@ -103,7 +131,10 @@ private extension ReleaseNoteView {
                 label: source.name,
                 placeholder: "Build number",
                 text: buildNumberBinding(for: source),
-                badge: source.badge
+                badge: source.badge,
+                focusedField: $focusedField,
+                fieldValue: .buildSource(source),
+                onSubmit: { moveFocusAfter(source) }
             )
         }
     }
@@ -220,6 +251,7 @@ private extension ReleaseNoteView {
     func submit() {
         guard isFormValid else { return }
 
+        focusedField = nil
         copyToClipboard(releaseNote)
 
         toast = Toast(
@@ -245,6 +277,21 @@ private extension ReleaseNoteView {
             for (index, source) in otherSources.enumerated() {
                 buildNumbers[source] = String(baseBuildNumber + index + 1)
             }
+        }
+    }
+
+    func moveFocusAfter(_ source: BuildSource) {
+        let sources = visibleBuildSources
+        guard let currentIndex = sources.firstIndex(of: source) else {
+            submit()
+            return
+        }
+
+        let nextIndex = currentIndex + 1
+        if nextIndex < sources.count {
+            focusedField = .buildSource(sources[nextIndex])
+        } else {
+            submit()
         }
     }
 
@@ -309,7 +356,7 @@ private enum BuildSource: CaseIterable, Hashable {
         }
     }
 
-    var badge: FormField.Badge? {
+    var badge: FormField<ReleaseNoteView.FocusField>.Badge? {
         switch self {
         case .production: .production
         case .devAdhoc, .devTestFlight: .dev

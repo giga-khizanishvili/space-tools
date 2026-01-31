@@ -7,11 +7,14 @@
 
 import SwiftUI
 
-struct FormField: View {
+struct FormField<FocusValue: Hashable>: View {
     let label: String
     let placeholder: String
     @Binding var text: String
     var badge: Badge?
+    var focusedField: FocusState<FocusValue?>.Binding?
+    var fieldValue: FocusValue?
+    var onSubmit: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -32,8 +35,25 @@ struct FormField: View {
                 }
             }
 
+            textField
+        }
+    }
+}
+
+// MARK: - Subviews
+
+private extension FormField {
+    @ViewBuilder
+    var textField: some View {
+        if let focusedField, let fieldValue {
             TextField(placeholder, text: $text)
                 .textFieldStyle(.roundedBorder)
+                .focused(focusedField, equals: fieldValue)
+                .onSubmit { onSubmit?() }
+        } else {
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { onSubmit?() }
         }
     }
 }
@@ -61,5 +81,24 @@ extension FormField {
             case .test: .blue
             }
         }
+    }
+}
+
+// MARK: - Convenience Initializer
+
+extension FormField where FocusValue == Never {
+    init(
+        label: String,
+        placeholder: String,
+        text: Binding<String>,
+        badge: Badge? = nil
+    ) {
+        self.label = label
+        self.placeholder = placeholder
+        self._text = text
+        self.badge = badge
+        self.focusedField = nil
+        self.fieldValue = nil
+        self.onSubmit = nil
     }
 }
