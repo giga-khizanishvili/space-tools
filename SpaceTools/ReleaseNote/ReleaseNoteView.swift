@@ -254,10 +254,12 @@ private extension ReleaseNoteView {
         focusedField = nil
         copyToClipboard(releaseNote)
 
-        toast = Toast(
-            style: .success,
-            message: "Release note copied to clipboard!"
-        )
+        DispatchQueue.main.async {
+            toast = Toast(
+                style: .success,
+                message: "Release note copied to clipboard!"
+            )
+        }
     }
 
     func resetBuildNumbers() {
