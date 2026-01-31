@@ -72,15 +72,39 @@ private extension ReleaseNoteView {
     var buildNumbersSection: some View {
         CardView(title: "Build Numbers", icon: "number.circle") {
             VStack(spacing: 16) {
-                ForEach(visibleBuildSources, id: \.self) { source in
-                    FormField(
-                        label: source.name,
-                        placeholder: "Build number",
-                        text: buildNumberBinding(for: source),
-                        badge: source.badge
-                    )
-                }
+                productionBuildField
+                otherBuildFields
             }
+        }
+    }
+
+    var productionBuildField: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            FormField(
+                label: BuildSource.production.name,
+                placeholder: "Build number",
+                text: buildNumberBinding(for: .production),
+                badge: BuildSource.production.badge
+            )
+
+            Button(action: fillBuildNumbersAutomatically) {
+                Image(systemName: "wand.and.stars")
+            }
+            .buttonStyle(.bordered)
+            .help("Fill other build numbers automatically (+1, +2, ...)")
+            .disabled(Int(buildNumbers[.production] ?? "") == nil)
+        }
+    }
+
+    @ViewBuilder
+    var otherBuildFields: some View {
+        ForEach(visibleBuildSources.filter { $0 != .production }, id: \.self) { source in
+            FormField(
+                label: source.name,
+                placeholder: "Build number",
+                text: buildNumberBinding(for: source),
+                badge: source.badge
+            )
         }
     }
 
@@ -206,6 +230,18 @@ private extension ReleaseNoteView {
         }
     }
 
+    func fillBuildNumbersAutomatically() {
+        guard let baseBuildNumber = Int(buildNumbers[.production] ?? "") else { return }
+
+        let otherSources: [BuildSource] = [.devAdhoc, .devTestFlight, .testAdhoc, .testTestFlight]
+
+        withAnimation {
+            for (index, source) in otherSources.enumerated() {
+                buildNumbers[source] = String(baseBuildNumber + index + 1)
+            }
+        }
+    }
+
     func copyToClipboard(_ text: String) {
 #if os(iOS) || os(visionOS)
         UIPasteboard.general.string = text
@@ -267,114 +303,11 @@ private enum BuildSource: CaseIterable, Hashable {
         }
     }
 
-    var badge: BuildBadge? {
+    var badge: FormField.Badge? {
         switch self {
         case .production: .production
         case .devAdhoc, .devTestFlight: .dev
         case .testAdhoc, .testTestFlight: .test
-        }
-    }
-}
-
-// MARK: - Build Badge
-
-private enum BuildBadge {
-    case production
-    case dev
-    case test
-
-    var text: String {
-        switch self {
-        case .production: "PROD"
-        case .dev: "DEV"
-        case .test: "TEST"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .production: .green
-        case .dev: .orange
-        case .test: .blue
-        }
-    }
-}
-
-// MARK: - Card View
-
-private struct CardView<Content: View>: View {
-    let title: String
-    let icon: String
-    var isCollapsible: Bool = false
-    var isExpanded: Binding<Bool>?
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            headerView
-            if !isCollapsible || (isExpanded?.wrappedValue ?? true) {
-                content()
-            }
-        }
-        .padding(20)
-        .background(Color(.windowBackgroundColor))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-    }
-
-    private var headerView: some View {
-        HStack {
-            Label(title, systemImage: icon)
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            Spacer()
-
-            if isCollapsible {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isExpanded?.wrappedValue.toggle()
-                    }
-                } label: {
-                    Image(systemName: isExpanded?.wrappedValue ?? false ? "chevron.up" : "chevron.down")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-}
-
-// MARK: - Form Field
-
-private struct FormField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-    var badge: BuildBadge?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(label)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                if let badge {
-                    Text(badge.text)
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(badge.color.opacity(0.15))
-                        .foregroundColor(badge.color)
-                        .cornerRadius(4)
-                }
-            }
-
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.roundedBorder)
         }
     }
 }
